@@ -40,15 +40,18 @@ def test_training(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_epoch
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     for epoch in range(n_epochs):
         print(f"\nEpoch {epoch}")
+        running_loss = 0
         for i, data in enumerate(train_loader, 0):
             x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
             y_pred = model(x)
             loss = lossfunction(y_pred, y)
-            if i % 10 == 9:
-                print(i, loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            running_loss += loss.item()
+            if i % 10 == 9:
+                print(i, running_loss)
+                running_loss = 0
 
 
 class Net(nn.Module):
@@ -81,11 +84,21 @@ class Net(nn.Module):
 
 model = Net([512, 512]).to(device)
 
-# TODO: deepsdf loss function
-loss_fn = torch.nn.MSELoss(reduction='sum')
 
-test_overfitting(model, train_loader, loss_fn)
-# test_training(model, train_loader, loss_fn)
+def deepsdfloss(outputs, targets):
+    # TODO: move that delta somewhere to clean up the code
+    delta = 0.1
+    # TODO: investigate nn.MSELoss()(torch.clamp(...) -...)
+    return torch.mean(torch.abs(
+        torch.clamp(outputs, min=-delta, max=delta) - torch.clamp(targets, min=-delta, max=delta)
+    ))
+
+
+# loss_fn = torch.nn.MSELoss(reduction='sum')
+loss_fn = deepsdfloss
+
+# test_overfitting(model, train_loader, loss_fn)
+test_training(model, train_loader, loss_fn)
 
 # TODO: validation
 # TODO: visualization
