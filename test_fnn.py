@@ -20,6 +20,7 @@ train_loader = DataLoader(
 
 
 def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_iters=30):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(mymodel)
     iterat = iter(dataloader)
     d1, l1 = next(iterat)
@@ -37,13 +38,14 @@ def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_it
 
 def test_training(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_epochs=10):
     print(mymodel)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    optimizer = torch.optim.Adam(mymodel.parameters(), lr=learning_rate)
     for epoch in range(n_epochs):
         print(f"\nEpoch {epoch}")
         running_loss = 0
-        for i, data in enumerate(train_loader, 0):
+        for i, data in enumerate(dataloader, 0):
             x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
-            y_pred = model(x)
+            y_pred = mymodel(x)
             loss = lossfunction(y_pred, y)
             optimizer.zero_grad()
             loss.backward()
@@ -55,6 +57,8 @@ def test_training(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_epoch
 
 
 class Net(nn.Module):
+    # TODO: weight normalization
+    # TODO: dropouts
     def __init__(self, layer_dims):
         super(Net, self).__init__()
         input_dim = 3
