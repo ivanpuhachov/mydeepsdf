@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 # TODO: change default values
 parser.add_argument("-i", "--input", help="Path to parent folder of obj. Default: 'data/airplanes/npy/'",
                     default='debug/temp/')
-parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=2)
+parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=20)
 parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=7)
 parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
 args = parser.parse_args()
@@ -42,7 +42,7 @@ for filename in listdir(folderpath):
     family_data_train[filename] = (id_, train_loader)
     family_data_test[filename] = (id_, test_loader)
 
-model = FamilyShapeDecoderSDF(layer_dims=[512, 512], family_size=family_size, latent_size=latent_size)
+model = FamilyShapeDecoderSDF(family_size=family_size, latent_size=latent_size)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 model.to(device)

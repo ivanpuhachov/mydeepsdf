@@ -6,8 +6,7 @@ from models import FamilyShapeDecoderSDF, deepsdfloss
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = FamilyShapeDecoderSDF([512, 512], latent_size=7, family_size=10).to(device)
-print(model.latent_vector)
+model = FamilyShapeDecoderSDF(latent_size=7, family_size=10).to(device)
 
 with open('data/chair.npy', 'rb') as f:
     features = torch.from_numpy(np.load(f))
@@ -23,7 +22,6 @@ train_loader = DataLoader(
 
 
 def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_iters=30):
-    print(mymodel)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     iterat = iter(dataloader)
     d1, l1 = next(iterat)
@@ -43,7 +41,6 @@ def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_it
 
 
 def test_training(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_epochs=10):
-    print(mymodel)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     optimizer = torch.optim.Adam(mymodel.parameters(), lr=learning_rate)
     for epoch in range(n_epochs):
@@ -62,6 +59,7 @@ def test_training(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_epoch
                 running_loss = 0
 
 
-# test_overfitting(model, train_loader, loss_fn, learning_rate=1e-4, n_iters=100) # huge learning rate to validate that latent_vector is updating
-test_training(model, train_loader, deepsdfloss, n_epochs=5)
+print(model.latent_vector[0])
+# test_overfitting(model, train_loader, deepsdfloss, learning_rate=1e-4, n_iters=100)
+test_training(model, train_loader, deepsdfloss, n_epochs=20)
 print(model.latent_vector[0])
