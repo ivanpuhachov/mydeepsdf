@@ -4,6 +4,8 @@ from torch.utils.data import DataLoader, TensorDataset, random_split
 import torch.nn as nn
 from models import SingleShapeSDF, deepsdfloss
 import matplotlib.pyplot as plt
+import meshplot
+meshplot.offline()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -27,7 +29,7 @@ validation_loader = DataLoader(
 )
 
 test_loader = DataLoader(
-    testset, shuffle=False, batch_size=5000
+    testset, shuffle=False, batch_size=10000
 )
 
 
@@ -98,12 +100,19 @@ test_training(model, train_loader, validation_loader, loss_fn, n_epochs=n_epochs
 
 model.train(False)
 test_loss = 0
+testpoints = []
+testsdf = []
 with torch.no_grad():
     for i, data in enumerate(test_loader):
         x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
         y_pred = model.forward(x)
         loss = loss_fn(y_pred, y)
         test_loss += loss.item()
+    data = next(iter(test_loader))
+    x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
+    y_pred = model.forward(x)
+    meshplot.plot(x.cpu().numpy(), c=y_pred.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/predicted.html")
+    meshplot.plot(x.cpu().numpy(), c=y.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/target.html")
 print(f"TEST LOSS: {test_loss/4}")
 plt.axhline(y=test_loss/4, xmin=0, xmax=n_epochs-1, color='red', label='final test')
 plt.legend()
@@ -112,4 +121,4 @@ plt.show()
 
 # TODO: validation with another metric (not deepsdf loss)
 # TODO: what metric do they use in the paper?
-# TODO: visualization
+# TODO: visualization with marching cubes

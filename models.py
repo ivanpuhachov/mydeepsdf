@@ -5,6 +5,7 @@ import torch.nn as nn
 
 
 class SingleShapeSDF(nn.Module):
+    # TODO: initialization
     # TODO: weight normalization
     # TODO: dropouts
     def __init__(self, layer_dims):

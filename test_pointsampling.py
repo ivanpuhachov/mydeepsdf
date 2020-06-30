@@ -6,11 +6,11 @@ import numpy as np
 import meshplot
 meshplot.offline()
 
-mesh = trimesh.load('data/chair.obj')
+mesh = trimesh.load('data/sphere.obj')
 
 points, sdf = sample_sdf_near_surface(mesh, number_of_points=500000)
 
-with open("data/chair.npy", 'wb') as f:
+with open("data/sphere.npy", 'wb') as f:
     np.save(f, points)
     np.save(f, sdf)
 
