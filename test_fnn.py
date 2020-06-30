@@ -1,40 +1,33 @@
 import torch
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset, random_split
-import torch.nn as nn
 from models import SingleShapeSDF, deepsdfloss
 import matplotlib.pyplot as plt
+import argparse
+from skimage import measure
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from utils import get_grid
 import meshplot
 meshplot.offline()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-with open('data/chair.npy', 'rb') as f:
-    features = torch.from_numpy(np.load(f))
-    labels = torch.from_numpy(np.load(f))
+parser = argparse.ArgumentParser()
+# TODO: change default values
+parser.add_argument("-i", "--input", help="Path to .npy file. Default: 'data/chair.npy'",
+                    default='data/airplane.npy')
+parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 10", default=10)
+parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
+parser.add_argument("-r", "--rate", type=float, help="learning rate. Default: 1e-4", default=1e-4)
+args = parser.parse_args()
 
-dataset = TensorDataset(features, labels)
-trainset, valset, testset = random_split(dataset, [250000, 50000, 200000])
-
-train_loader = DataLoader(
-    trainset,
-    shuffle=True,
-    batch_size=5000)
-# TODO: paper uses batchsize = 16k, why?
-
-validation_loader = DataLoader(
-    valset,
-    shuffle=False,
-    batch_size=5000
-)
-
-test_loader = DataLoader(
-    testset, shuffle=False, batch_size=10000
-)
+file_path = args.input
+n_epochs = args.epochs
+lr = args.rate
+bs = args.batch
 
 
 def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_iters=30):
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(mymodel)
     iterat = iter(dataloader)
     d1, l1 = next(iterat)
@@ -52,10 +45,9 @@ def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_it
 
 def test_training(mymodel, dataloader, valloader, lossfunction, learning_rate=1e-4, n_epochs=10):
     print(mymodel)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     optimizer = torch.optim.Adam(mymodel.parameters(), lr=learning_rate)
-    train_history = []
-    validation_history = []
+    t_history = []
+    v_history = []
     for epoch in range(n_epochs):
         mymodel.train(True)
         print(f"\nEpoch {epoch}")
@@ -74,7 +66,7 @@ def test_training(mymodel, dataloader, valloader, lossfunction, learning_rate=1e
                 print(i, running_loss)
                 running_loss = 0
 
-        train_history.append(total_loss/20) # /20 to normalize and compare with validation set
+        t_history.append(total_loss/20) # /20 to normalize and compare with validation set
         mymodel.train(False)
         total_loss = 0
         with torch.no_grad():
@@ -83,22 +75,44 @@ def test_training(mymodel, dataloader, valloader, lossfunction, learning_rate=1e
                 y_pred = mymodel.forward(x)
                 loss = lossfunction(y_pred, y)
                 total_loss += loss.item()
-        validation_history.append(total_loss)
-    plt.plot(range(n_epochs), train_history, label='train')
-    plt.plot(range(n_epochs), validation_history, label='val')
+        v_history.append(total_loss)
+    return t_history, v_history
 
 
-model = SingleShapeSDF([512, 512]).to(device)
+with open(file_path, 'rb') as f:
+    xyz = np.load(f)
+    dataset_size = xyz.shape[0]
+    features = torch.from_numpy(xyz)
+    labels = torch.from_numpy(np.load(f))
 
+dataset = TensorDataset(features, labels)
+trainset, valset, testset = random_split(dataset, [250000, 10000, 40000])
 
+train_loader = DataLoader(
+    trainset,
+    shuffle=True,
+    batch_size=bs)
+# TODO: paper uses batchsize = 16k, why?
+
+validation_loader = DataLoader(
+    valset,
+    shuffle=False,
+    batch_size=bs
+)
+
+test_loader = DataLoader(
+    testset, shuffle=False, batch_size=bs
+)
+
+model = SingleShapeSDF([512, 512, 512]).to(device)
 
 # loss_fn = torch.nn.MSELoss(reduction='sum')
 loss_fn = deepsdfloss
-n_epochs = 5
 # test_overfitting(model, train_loader, loss_fn)
-test_training(model, train_loader, validation_loader, loss_fn, n_epochs=n_epochs)
+train_history, validation_history = test_training(model, train_loader, validation_loader, loss_fn,
+                                                  n_epochs=n_epochs, learning_rate=lr)
 
-model.train(False)
+model.eval()
 test_loss = 0
 testpoints = []
 testsdf = []
@@ -114,11 +128,53 @@ with torch.no_grad():
     meshplot.plot(x.cpu().numpy(), c=y_pred.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/predicted.html")
     meshplot.plot(x.cpu().numpy(), c=y.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/target.html")
 print(f"TEST LOSS: {test_loss/4}")
-plt.axhline(y=test_loss/4, xmin=0, xmax=n_epochs-1, color='red', label='final test')
-plt.legend()
-plt.title("Loss")
-plt.show()
+
+
+def plot_training_curve(train_history, validation_history, final_loss):
+    plt.plot(range(n_epochs), train_history, label='train')
+    plt.plot(range(n_epochs), validation_history, label='val')
+    plt.axhline(y=final_loss/4, xmin=0, xmax=n_epochs-1, color='red', label='final test')
+    plt.legend()
+    plt.title("Loss")
+    plt.show()
+
+
+plot_training_curve(train_history, validation_history, test_loss)
 
 # TODO: validation with another metric (not deepsdf loss)
 # TODO: what metric do they use in the paper?
-# TODO: visualization with marching cubes
+
+
+
+def visualize_voxels(model, grid_res=20):
+    outs = get_grid(model, grid_res)
+    sdfs_ = (np.abs(outs) < 1 / grid_res) * 1.0
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.voxels(sdfs_, edgecolor="k")
+    plt.show()
+
+
+def visualize_marchingcubes(model, grid_res=100):
+    outs = get_grid(model, grid_res)
+    verts, faces, normals, values = measure.marching_cubes(outs, 0)
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    mesh = Poly3DCollection(verts[faces])
+    mesh.set_edgecolor('k')
+    ax.add_collection3d(mesh)
+
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+
+    ax.set_xlim(0, grid_res)
+    ax.set_ylim(0, grid_res)
+    ax.set_zlim(0, grid_res)
+
+    plt.tight_layout()
+    plt.show()
+
+visualize_voxels(model, grid_res=20)
+visualize_marchingcubes(model, grid_res=100)
