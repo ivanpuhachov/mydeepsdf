@@ -12,9 +12,9 @@ parser = argparse.ArgumentParser()
 # TODO: change default values
 parser.add_argument("-i", "--input", help="Path to parent folder of obj. Default: 'data/airplanes/npy/'",
                     default='debug/temp/')
-parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=20)
+parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=5)
 parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=7)
-parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
+parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=16384)
 args = parser.parse_args()
 
 folderpath = args.input
@@ -42,11 +42,16 @@ for filename in listdir(folderpath):
     family_data_train[filename] = (id_, train_loader)
     family_data_test[filename] = (id_, test_loader)
 
-model = FamilyShapeDecoderSDF(family_size=family_size, latent_size=latent_size)
+model = FamilyShapeDecoderSDF(family_size=family_size, latent_size=latent_size, h_blocks=40)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+print("\n Latent vector 0:")
+print(model.latent_vector[0])
+print("\n Last layer weights: ")
+print(model.block1[7].weight)
 
 for epoch in range(n_epochs):
     print(f"\n----------------\nEpoch {epoch}")
@@ -58,15 +63,17 @@ for epoch in range(n_epochs):
         print(model.latent_vector[id_, :])
         for i, data in enumerate(trainloader_, 0):
             x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
-            y_pred = model.forward(x, family_id=id_)
+            y_pred = model(x, family_id=id_)
             loss = deepsdfloss(y_pred, y)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-            # if i % 10 == 9:
-            #     print(i, running_loss)
-            #     running_loss = 0
         print(model.latent_vector[id_, :])
+        print(running_loss)
 
+print("\n Latent vector 0:")
+print(model.latent_vector[0])
+print("\n Last layer weights: ")
+print(model.block1[7].weight)
 
