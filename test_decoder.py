@@ -14,7 +14,7 @@ with open('data/chair.npy', 'rb') as f:
     labels = torch.from_numpy(np.load(f))
 
 dataset = TensorDataset(features, labels)
-trainset, valset, testset = random_split(dataset, [200000, 10000, 40000])
+trainset, valset, testset = random_split(dataset, [250000, 50000, 200000])
 
 train_loader = DataLoader(
     trainset,
@@ -63,5 +63,5 @@ def test_training(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_epoch
 
 
 # test_overfitting(model, train_loader, loss_fn, learning_rate=1e-4, n_iters=100) # huge learning rate to validate that latent_vector is updating
-test_training(model, train_loader, deepsdfloss, n_epochs=20)
-print(model.latent_vector)
+test_training(model, train_loader, deepsdfloss, n_epochs=5)
+print(model.latent_vector[0])

@@ -48,12 +48,16 @@ class FamilyShapeDecoderSDF(nn.Module):
         self.layer_dims.insert(0, 3+latent_size)
         self.num_layers = len(self.layer_dims)
         self.layers = nn.ModuleList()
+        self.dropout = nn.Dropout(p=0.2)
         for i in range(self.num_layers - 1):
             self.layers.append(nn.Linear(layer_dims[i], layer_dims[i + 1]))
 
     def forward(self, xyz, family_id):
+        return self.forward_customlatent(xyz, self.latent_vector[family_id])
+
+    def forward_customlatent(self, xyz, latent):
         batchsize = xyz.shape[0]
-        inputs = torch.cat([self.latent_vector[family_id].repeat(batchsize, 1), xyz], dim=1)
+        inputs = torch.cat([latent.repeat(batchsize, 1), xyz], dim=1)
         x = inputs
         # TODO: skip-connection
         # TODO: weight norm
@@ -61,6 +65,7 @@ class FamilyShapeDecoderSDF(nn.Module):
         for layer in range(self.num_layers - 2):
             x = self.layers[layer](x)
             x = nn.functional.relu(x)
+            x = self.dropout(x)
         x = self.layers[-1](x)
         x = torch.tanh(x)
         return x
