@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import argparse
 from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from utils import get_grid
+from utils import get_sdfgrid
 import meshplot
 meshplot.offline()
 
@@ -114,8 +114,6 @@ train_history, validation_history = test_training(model, train_loader, validatio
 
 model.eval()
 test_loss = 0
-testpoints = []
-testsdf = []
 with torch.no_grad():
     for i, data in enumerate(test_loader):
         x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
@@ -147,7 +145,7 @@ plot_training_curve(train_history, validation_history, test_loss)
 
 
 def visualize_voxels(model, grid_res=20):
-    outs = get_grid(model, grid_res)
+    outs = get_sdfgrid(model, grid_res)
     sdfs_ = (np.abs(outs) < 1 / grid_res) * 1.0
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -156,7 +154,7 @@ def visualize_voxels(model, grid_res=20):
 
 
 def visualize_marchingcubes(model, grid_res=100):
-    outs = get_grid(model, grid_res)
+    outs = get_sdfgrid(model, grid_res)
     verts, faces, normals, values = measure.marching_cubes(outs, 0)
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')
