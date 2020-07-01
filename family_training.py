@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import json
+from mesh_to_sdf import sample_sdf_near_surface
+import trimesh
 
 
 class FamilyShapeSDFWrapper:
@@ -56,9 +58,19 @@ class FamilyShapeSDFWrapper:
             json.dump(data, jsonfile)
         torch.save(self.model.state_dict(), self.path_to_saves + "model-parameters.pt")
 
-    def load(self, path_to_save_folder: str):
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        # TODO: implement loading from save dir
+    # def load(self, path_to_save_folder: str):
+    #     self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    #     with open(path_to_save_folder + 'data.json') as jsonfile:
+    #         data = json.load(jsonfile)
+    #         self.path_to_training_npyfolder=data['path_to_training_npyfolder']
+    #         self.batch_size = data['batch_size']
+    #         self.h_blocks = data['h_blocks']
+    #         self.latent_size = data['latent_size']
+    #         self.path_to_saves = data['path_to_saves']
+    #         self.model.load_state_dict(torch.load(path_to_save_folder + "model-parameters.pt"))
+    #         self.get_loaders()
+    #         new_filename_to_id = data['filename_to_id']
+            # TODO: finish load
 
     def get_loaders(self):
         for id_, filename in enumerate(listdir(self.path_to_training_npyfolder)):
@@ -220,6 +232,16 @@ class FamilyShapeSDFWrapper:
         plt.savefig(self.path_to_saves + filename)
         plt.close()
 
+    def fit_latent_for_mesh(self, filepath, points_sampled=300000, n_epochs=20, learning_rate=1e-3, loss=deepsdfloss, debug=False):
+        print("Loading mesh")
+        mesh = trimesh.load(filepath)
+        print("Sampling points")
+        points, sdf = sample_sdf_near_surface(mesh, number_of_points=points_sampled)
+        dataset = TensorDataset(torch.from_numpy(points), torch.from_numpy(sdf))
+        dataloader = DataLoader(dataset, shuffle=True, batch_size=5000)
+        print("Optimizing latent")
+        return self.fit_latent_for_dataloader(dataloader, n_epochs, learning_rate, loss, debug)
+
     def fit_latent_for_dataloader(self, dataloader, n_epochs=20, learning_rate=1e-3, loss=deepsdfloss, debug=False):
         self.model.eval()
         lat = torch.autograd.Variable(torch.randn([self.latent_size], dtype=torch.float32)).to(self.device)
@@ -228,7 +250,7 @@ class FamilyShapeSDFWrapper:
             print(lat)
         lat.requires_grad = True
         momentum = torch.zeros(self.latent_size).to(self.device)
-        for epoch in range(50):
+        for epoch in range(n_epochs):
             running_loss = 0
             for i, data in enumerate(dataloader, 0):
                 x, y = data[0].to(self.device), data[1].unsqueeze(1).to(self.device)
@@ -238,7 +260,7 @@ class FamilyShapeSDFWrapper:
                 running_loss += c_loss.item()
                 c_loss.backward()
                 average_grad = np.abs(lat.grad.data.cpu().numpy()).mean()
-                normalized_lr = 0.01 / average_grad
+                normalized_lr = learning_rate / average_grad
                 momentum = 0.1 * momentum + lat.grad.data
                 lat.data = lat.data - normalized_lr * lat.grad.data
                 lat.grad.data.zero_()
