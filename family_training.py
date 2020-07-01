@@ -10,6 +10,7 @@ from utils import get_torchgrid
 import matplotlib.pyplot as plt
 from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import json
 
 
 class FamilyShapeSDFWrapper:
@@ -38,7 +39,22 @@ class FamilyShapeSDFWrapper:
         self.validation_history = []
         self.get_loaders()
 
-    # TODO: implement saving
+    def save(self):
+        # TODO: prettify and use pickle
+        data = dict()
+        data['family_size'] = self.family_size
+        data['latent_size'] = self.latent_size
+        data['h_blocks'] = self.h_blocks
+        data['batch_size'] = self.batch_size
+        data['path_to_training_npyfolder'] = self.path_to_training_npyfolder
+        data['path_to_saves'] = self.path_to_saves
+        data['filename_to_id'] = self.filename_to_id
+        data['id_to_filename'] = self.id_to_filename
+        data['train_history'] = self.train_history
+        data['validation_history'] = self.validation_history
+        with open(self.path_to_saves+"data.json", "w") as jsonfile:
+            json.dump(data, jsonfile)
+        torch.save(self.model.state_dict(), self.path_to_saves + "model-parameters.pt")
 
     def load(self, path_to_save_folder: str):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -60,7 +76,6 @@ class FamilyShapeSDFWrapper:
 
     def train(self, n_epochs=5, learning_rate=1e-4, debug=False, lossfunction=deepsdfloss):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
-
         if debug:
             print("\n Latent vector 0:")
             print(self.model.latent_vector[0])
@@ -150,7 +165,7 @@ class FamilyShapeSDFWrapper:
         self.visualize_latent_marchingcubes(latent_vector=latent, grid_res=grid_res)
 
     def visualize_latent_marchingcubes(self, latent_vector, grid_res=50):
-        try :
+        try:
             outs = self.evaluate_on_grid(latent_vector=latent_vector, grid_res=grid_res)
             verts, faces, normals, values = measure.marching_cubes(outs, 0)
             fig = plt.figure(figsize=(10, 10))
@@ -201,6 +216,7 @@ class FamilyShapeSDFWrapper:
         plt.xlabel("epochs")
         plt.ylabel("loss")
         plt.savefig(self.path_to_saves + filename)
+        plt.close()
 
 
 def get_parser():
@@ -210,12 +226,23 @@ def get_parser():
                         default='debug/temp/')
     parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=5)
     parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=7)
-    parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=16384)
+    parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 16384", default=16384)
     parser.add_argument("-g", "--height", type=int, help="Number of neurons in hidden units. Default: 200", default=200)
     parser.add_argument("-d", "--debug", help="Print debugging info", action='store_true')
     parser.add_argument("-r", "--rate", type=float, help="Learning rate. Default: 1e-4", default=1e-4)
     return parser
 
+
+def load_wrapper_from_dir(dirpath: str):
+    with open(dirpath+'data.json') as jsonfile:
+        data = json.load(jsonfile)
+        wr = FamilyShapeSDFWrapper(path_to_training_npyfolder=data['path_to_training_npyfolder'],
+                                   batch_size=data['batch_size'],
+                                   h_blocks=data['h_blocks'],
+                                   latent_size=data['latent_size'],
+                                   path_to_saves=data['path_to_saves'])
+        wr.model.load_state_dict(torch.load(dirpath+"model-parameters.pt"))
+    return wr
 
 def main(args=None):
     parser = get_parser()
@@ -230,9 +257,10 @@ def main(args=None):
     learning_rate = args.rate
     workdir = f"e{n_epochs}_l{latent_size}_b{batch_size}_h{h_blocks}_lr{learning_rate}/"
     if path.exists(workdir):
-        print("Workdir exists!")
+        print(f"Workdir exists! {workdir}")
     else:
         mkdir(workdir)
+        print(f"Created workdir:\t {workdir}")
 
     wrapper = FamilyShapeSDFWrapper(path_to_training_npyfolder=folderpath,
                                     batch_size=batch_size,
@@ -244,6 +272,8 @@ def main(args=None):
     wrapper.visualize_id_voxels(latent_id=wrapper.get_id_by_filename("0.npy"))
     wrapper.visualize_id_marchingcubes(latent_id=wrapper.get_id_by_filename("0.npy"))
     wrapper.plot_history()
+    wrapper.save()
+
 
 
 if __name__ == '__main__':
