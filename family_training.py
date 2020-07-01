@@ -185,12 +185,14 @@ class FamilyShapeSDFWrapper:
 
             plt.tight_layout()
             plt.show()
+        # TODO: write error
         except:
             print("\nProblem with Marching Cubes, visualizing voxels instead")
             self.visualize_latent_voxels(latent_vector)
 
     def evaluate_on_grid(self, latent_vector, grid_res=20):
         grid = get_torchgrid(grid_res, self.device)
+        self.model.eval()
         with torch.no_grad():
             outs = self.model.forward_customlatent(grid, latent=latent_vector).cpu().reshape(
                 shape=(grid_res, grid_res, grid_res)).numpy()
