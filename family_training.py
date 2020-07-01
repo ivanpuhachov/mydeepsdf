@@ -220,6 +220,35 @@ class FamilyShapeSDFWrapper:
         plt.savefig(self.path_to_saves + filename)
         plt.close()
 
+    def fit_latent_for_dataloader(self, dataloader, n_epochs=20, learning_rate=1e-3, loss=deepsdfloss, debug=False):
+        self.model.eval()
+        lat = torch.autograd.Variable(torch.randn([self.latent_size], dtype=torch.float32)).to(self.device)
+        # self.visualize_latent_voxels(latent_vector=lat)
+        if debug:
+            print(lat)
+        lat.requires_grad = True
+        momentum = torch.zeros(self.latent_size).to(self.device)
+        for epoch in range(50):
+            running_loss = 0
+            for i, data in enumerate(dataloader, 0):
+                x, y = data[0].to(self.device), data[1].unsqueeze(1).to(self.device)
+                self.model.zero_grad()
+                y_pred = self.model.forward_customlatent(x, latent=lat)
+                c_loss = loss(y_pred, y)
+                running_loss += c_loss.item()
+                c_loss.backward()
+                average_grad = np.abs(lat.grad.data.cpu().numpy()).mean()
+                normalized_lr = 0.01 / average_grad
+                momentum = 0.1 * momentum + lat.grad.data
+                lat.data = lat.data - normalized_lr * lat.grad.data
+                lat.grad.data.zero_()
+            print(f"Fit epoch {epoch}, loss {running_loss}")
+        if debug:
+            print(lat)
+        # self.visualize_latent_voxels(latent_vector=lat)
+        return lat
+
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
