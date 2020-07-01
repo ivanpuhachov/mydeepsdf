@@ -8,6 +8,8 @@ from os import path, listdir
 import random
 from utils import get_torchgrid
 import matplotlib.pyplot as plt
+from skimage import measure
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 class FamilyShapeSDFWrapper:
@@ -22,7 +24,8 @@ class FamilyShapeSDFWrapper:
         self.latent_size = latent_size
         self.h_blocks = h_blocks
         self.batch_size = batch_size
-        self.model = FamilyShapeDecoderSDF(family_size=family_size, latent_size=latent_size, h_blocks=h_blocks).to(self.device)
+        self.model = FamilyShapeDecoderSDF(family_size=family_size, latent_size=latent_size,
+                                           h_blocks=h_blocks).to(self.device)
         self.path_to_training_npyfolder = path_to_training_npyfolder
         self.path_to_saves = path_to_saves
         assert (path.exists(self.path_to_training_npyfolder))
@@ -34,7 +37,7 @@ class FamilyShapeSDFWrapper:
         self.validation_history = []
         self.get_loaders()
 
-    # TODO: implament saving
+    # TODO: implement saving
 
     def load(self, path_to_save_folder: str):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -67,7 +70,7 @@ class FamilyShapeSDFWrapper:
             self.model.train()
             total_loss = 0
             # random order of shapes training
-            for key, value in sorted(self.family_data_train.items(), key=lambda x: random.random()):
+            for key, value in sorted(self.family_data_train.items(), key=lambda xx: random.random()):
                 id_, trainloader_ = value
                 running_loss = 0
                 if debug:
@@ -120,15 +123,53 @@ class FamilyShapeSDFWrapper:
                 val_loss += loss.item()
         return val_loss
 
-    def visualize_id(self, latent_id=0, grid_res=20):
-        grid = get_torchgrid(grid_res, self.device)
-        with torch.no_grad():
-            outs = self.model.forward(grid, family_id=latent_id).cpu().reshape(shape=(grid_res, grid_res, grid_res)).numpy()
+    def visualize_id_voxels(self, latent_id=0, grid_res=20):
+        latent = self.model.latent_vector[latent_id]
+        self.visualize_latent_voxels(latent_vector=latent, grid_res=grid_res)
+
+    def visualize_latent_voxels(self, latent_vector, grid_res=20):
+        outs = self.evaluate_on_grid(latent_vector=latent_vector, grid_res=grid_res)
         sdfs_ = (np.abs(outs) < 1 / grid_res) * 1.0
         fig = plt.figure()
         ax = fig.gca(projection='3d')
         ax.voxels(sdfs_, edgecolor="k")
         plt.show()
+
+    def visualize_id_marchingcubes(self, latent_id=0, grid_res=50):
+        latent = self.model.latent_vector[latent_id]
+        self.visualize_latent_marchingcubes(latent_vector=latent, grid_res=grid_res)
+
+    def visualize_latent_marchingcubes(self, latent_vector, grid_res=50):
+        try :
+            outs = self.evaluate_on_grid(latent_vector=latent_vector, grid_res=grid_res)
+            verts, faces, normals, values = measure.marching_cubes(outs, 0)
+            fig = plt.figure(figsize=(10, 10))
+            ax = fig.add_subplot(111, projection='3d')
+
+            mesh = Poly3DCollection(verts[faces])
+            mesh.set_edgecolor('k')
+            ax.add_collection3d(mesh)
+
+            ax.set_xlabel("x")
+            ax.set_ylabel("y")
+            ax.set_zlabel("z")
+
+            ax.set_xlim(0, grid_res)
+            ax.set_ylim(0, grid_res)
+            ax.set_zlim(0, grid_res)
+
+            plt.tight_layout()
+            plt.show()
+        except:
+            print("\nProblem with Marching Cubes, visualizing voxels instead")
+            self.visualize_latent_voxels(latent_vector)
+
+    def evaluate_on_grid(self, latent_vector, grid_res=20):
+        grid = get_torchgrid(grid_res, self.device)
+        with torch.no_grad():
+            outs = self.model.forward_customlatent(grid, latent=latent_vector).cpu().reshape(
+                shape=(grid_res, grid_res, grid_res)).numpy()
+        return outs
 
     def get_id_by_filename(self, filename):
         if filename in self.filename_to_id:
@@ -158,7 +199,9 @@ def get_parser():
     parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=7)
     parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=16384)
     parser.add_argument("-g", "--height", type=int, help="Number of neurons in hidden units. Default: 200", default=200)
+    parser.add_argument("-d", "--debug", help="Print debugging info", action='store_true')
     return parser
+
 
 def main(args=None):
     parser = get_parser()
@@ -169,15 +212,18 @@ def main(args=None):
     latent_size = args.latent
     batch_size = args.batch
     h_blocks = args.height
+    debug = args.debug
 
     wrapper = FamilyShapeSDFWrapper(path_to_training_npyfolder=folderpath,
                                     batch_size=batch_size,
                                     h_blocks=h_blocks,
                                     latent_size=latent_size)
-    wrapper.train(n_epochs=n_epochs, debug=False, learning_rate=1e-3)
+    wrapper.train(n_epochs=n_epochs, learning_rate=1e-3, debug=debug)
     wrapper.validate()
-    wrapper.visualize_id(latent_id=0)
+    wrapper.visualize_id_voxels(latent_id=wrapper.get_id_by_filename("0.npy"))
+    wrapper.visualize_id_marchingcubes(latent_id=wrapper.get_id_by_filename("0.npy"))
     wrapper.plot_history()
+
 
 if __name__ == '__main__':
     main()
