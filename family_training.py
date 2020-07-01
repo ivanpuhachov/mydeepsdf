@@ -4,7 +4,7 @@ import numpy as np
 from torch.utils.data import DataLoader, TensorDataset, random_split
 from models import FamilyShapeDecoderSDF, deepsdfloss
 import argparse
-from os import path, listdir
+from os import path, listdir, mkdir
 import random
 from utils import get_torchgrid
 import matplotlib.pyplot as plt
@@ -92,12 +92,13 @@ class FamilyShapeSDFWrapper:
             self.train_history.append(total_loss)
             self.model.eval()
             val_loss = self.validate(lossfunction, debug)
-            print(f"Total validation loss: {val_loss}")
+            print(f"\nTotal validation loss: {val_loss}")
             self.validation_history.append(val_loss)
             if val_loss < val_best:
                 print("save-best")
                 val_best = val_loss
                 torch.save(self.model.state_dict(), self.path_to_saves+"best-model-parameters.pt")
+            self.plot_history()
         # load best
         self.model.load_state_dict(torch.load(self.path_to_saves+"best-model-parameters.pt"))
 
@@ -193,9 +194,12 @@ class FamilyShapeSDFWrapper:
 
     def plot_history(self, filename="training.png"):
         n_epoch = len(self.train_history)
+        plt.figure()
         plt.plot(range(n_epoch), self.train_history, label='train')
         plt.plot(range(n_epoch), np.array(self.validation_history)*5, label='val')  # TODO: remove this constant
         plt.legend()
+        plt.xlabel("epochs")
+        plt.ylabel("loss")
         plt.savefig(self.path_to_saves + filename)
 
 
@@ -224,11 +228,17 @@ def main(args=None):
     h_blocks = args.height
     debug = args.debug
     learning_rate = args.rate
+    workdir = f"e{n_epochs}_l{latent_size}_b{batch_size}_h{h_blocks}_lr{learning_rate}/"
+    if path.exists(workdir):
+        print("Workdir exists!")
+    else:
+        mkdir(workdir)
 
     wrapper = FamilyShapeSDFWrapper(path_to_training_npyfolder=folderpath,
                                     batch_size=batch_size,
                                     h_blocks=h_blocks,
-                                    latent_size=latent_size)
+                                    latent_size=latent_size,
+                                    path_to_saves=workdir)
     wrapper.train(n_epochs=n_epochs, learning_rate=learning_rate, debug=debug)
     wrapper.validate()
     wrapper.visualize_id_voxels(latent_id=wrapper.get_id_by_filename("0.npy"))
