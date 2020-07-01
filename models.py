@@ -52,9 +52,9 @@ def sdfblock(in_dim, out_dim, height_dim):
                     nn.utils.weight_norm(nn.Linear(height_dim, height_dim)),
                     nn.LeakyReLU(inplace=True),
 
-                    # nn.Dropout(p=0.2),
-                    # nn.Linear(height_dim, height_dim),
-                    # nn.ReLU(inplace=True),
+                    nn.Dropout(p=0.2),
+                    nn.Linear(height_dim, height_dim),
+                    nn.ReLU(inplace=True),
 
                     nn.Dropout(p=0.2),
                     nn.utils.weight_norm(nn.Linear(height_dim, out_dim)),
