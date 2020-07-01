@@ -33,6 +33,7 @@ class FamilyShapeSDFWrapper:
         self.family_data_train = dict()
         self.family_data_validation = dict()
         self.filename_to_id = dict()
+        self.id_to_filename = dict()
         self.train_history = []
         self.validation_history = []
         self.get_loaders()
@@ -55,6 +56,7 @@ class FamilyShapeSDFWrapper:
             self.filename_to_id[filename] = id_
             self.family_data_train[filename] = (id_, train_loader)
             self.family_data_validation[filename] = (id_, validation_loader)
+            self.filename_to_id[id_] = filename
 
     def train(self, n_epochs=5, learning_rate=1e-4, debug=False, lossfunction=deepsdfloss):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
@@ -64,7 +66,7 @@ class FamilyShapeSDFWrapper:
             print(self.model.latent_vector[0])
             print("\n Last layer weights: ")
             print(self.model.block1[7].weight)
-
+        val_best = 100
         for epoch in range(n_epochs):
             print(f"\n----------------\nEpoch {epoch}")
             self.model.train()
@@ -84,14 +86,21 @@ class FamilyShapeSDFWrapper:
                     optimizer.step()
                     running_loss += loss.item()
                 total_loss += running_loss
-                print(f"Shape {id_}, loss: {running_loss}")
+                print(f"Shape {id_} - {self.filename_to_id[id_]}, loss: {running_loss}")
                 if debug:
                     print(self.model.latent_vector[id_, :])
-                    print(running_loss)
             self.train_history.append(total_loss)
             self.model.eval()
             val_loss = self.validate(lossfunction, debug)
+            print(f"Total validation loss: {val_loss}")
             self.validation_history.append(val_loss)
+            if val_loss < val_best:
+                print("save-best")
+                val_best = val_loss
+                torch.save(self.model.state_dict(), self.path_to_saves+"best-model-parameters.pt")
+        # load best
+        self.model.load_state_dict(torch.load(self.path_to_saves+"best-model-parameters.pt"))
+
         if debug:
             print("\n Latent vector 0:")
             print(self.model.latent_vector[0])
@@ -105,7 +114,7 @@ class FamilyShapeSDFWrapper:
             latent = self.model.latent_vector[id_, :]
             loss = self.val_(validationloader_, latent, lossfunction)
             if debug:
-                print(f"Shape {key} loss: {loss}")
+                print(f"Shape {key} - {self.filename_to_id[key]} loss: {loss}")
             total_loss += loss
         if debug:
             print(f"Total loss: {total_loss}")
@@ -200,6 +209,7 @@ def get_parser():
     parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=16384)
     parser.add_argument("-g", "--height", type=int, help="Number of neurons in hidden units. Default: 200", default=200)
     parser.add_argument("-d", "--debug", help="Print debugging info", action='store_true')
+    parser.add_argument("-r", "--rate", type=float, help="Learning rate. Default: 1e-4", default=1e-4)
     return parser
 
 
@@ -213,12 +223,13 @@ def main(args=None):
     batch_size = args.batch
     h_blocks = args.height
     debug = args.debug
+    learning_rate = args.rate
 
     wrapper = FamilyShapeSDFWrapper(path_to_training_npyfolder=folderpath,
                                     batch_size=batch_size,
                                     h_blocks=h_blocks,
                                     latent_size=latent_size)
-    wrapper.train(n_epochs=n_epochs, learning_rate=1e-3, debug=debug)
+    wrapper.train(n_epochs=n_epochs, learning_rate=learning_rate, debug=debug)
     wrapper.validate()
     wrapper.visualize_id_voxels(latent_id=wrapper.get_id_by_filename("0.npy"))
     wrapper.visualize_id_marchingcubes(latent_id=wrapper.get_id_by_filename("0.npy"))
