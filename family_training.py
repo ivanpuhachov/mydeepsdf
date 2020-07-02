@@ -102,6 +102,7 @@ class FamilyShapeSDFWrapper:
             for key, value in sorted(self.family_data_train.items(), key=lambda xx: random.random()):
                 id_, trainloader_ = value
                 running_loss = 0
+                regularizer = 0
                 if debug:
                     print(self.model.latent_vector[id_, :])
                 for i, data in enumerate(trainloader_, 0):
@@ -234,7 +235,8 @@ class FamilyShapeSDFWrapper:
         plt.savefig(self.path_to_saves + filename)
         plt.close()
 
-    def fit_latent_for_mesh(self, filepath, points_sampled=300000, n_epochs=20, learning_rate=1e-3, loss=deepsdfloss, debug=False):
+    def fit_latent_for_mesh(self, filepath, points_sampled=300000, n_epochs=20,
+                            learning_rate=1e-3, loss=deepsdfloss, debug=False):
         print("Loading mesh")
         mesh = trimesh.load(filepath)
         print("Sampling points")
@@ -273,11 +275,10 @@ class FamilyShapeSDFWrapper:
         return lat
 
 
-
 def get_parser():
     parser = argparse.ArgumentParser()
     # TODO: change default values
-    parser.add_argument("-i", "--input", help="Path to parent folder of obj. Default: 'data/airplanes/npy/'",
+    parser.add_argument("-i", "--input", help="Path to parent folder of npy. Default: 'data/airplanes/npy/'",
                         default='data/airplanes/npy/')
     parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=5)
     parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=256)
@@ -299,7 +300,8 @@ def load_wrapper_from_dir(dirpath: str):
         wr.model.load_state_dict(torch.load(dirpath+"model-parameters.pt"))
     return wr
 
-def main(args=None):
+
+def main():
     parser = get_parser()
     args = parser.parse_args()
 
@@ -328,7 +330,6 @@ def main(args=None):
     wrapper.visualize_id_marchingcubes(latent_id=wrapper.get_id_by_filename("0.npy"))
     wrapper.plot_history()
     wrapper.save()
-
 
 
 if __name__ == '__main__':
