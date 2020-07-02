@@ -10,6 +10,7 @@ from utils import get_sdfgrid
 import meshplot
 
 def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_iters=30):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(mymodel)
     iterat = iter(dataloader)
     d1, l1 = next(iterat)
@@ -26,6 +27,7 @@ def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_it
 
 
 def test_training(mymodel, dataloader, valloader, lossfunction, learning_rate=1e-4, n_epochs=10):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(mymodel)
     optimizer = torch.optim.Adam(mymodel.parameters(), lr=learning_rate)
     t_history = []
@@ -91,6 +93,7 @@ def visualize_marchingcubes(model, grid_res=100):
     plt.show()
 
 def plot_training_curve(train_history, validation_history, final_loss):
+    n_epochs = len(train_history)
     plt.plot(range(n_epochs), train_history, label='train')
     plt.plot(range(n_epochs), validation_history, label='val')
     plt.axhline(y=final_loss/4, xmin=0, xmax=n_epochs-1, color='red', label='final test')
@@ -98,82 +101,88 @@ def plot_training_curve(train_history, validation_history, final_loss):
     plt.title("Loss")
     plt.show()
 
-meshplot.offline()
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+def main():
+    meshplot.offline()
 
-parser = argparse.ArgumentParser()
-# TODO: change default values
-parser.add_argument("-i", "--input", help="Path to .npy file. Default: 'data/chair.npy'",
-                    default='data/chair.npy')
-parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 50", default=50)
-parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
-parser.add_argument("-r", "--rate", type=float, help="learning rate. Default: 1e-4", default=1e-4)
-args = parser.parse_args()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-file_path = args.input
-n_epochs = args.epochs
-lr = args.rate
-bs = args.batch
+    parser = argparse.ArgumentParser()
+    # TODO: change default values
+    parser.add_argument("-i", "--input", help="Path to .npy file. Default: 'data/chair.npy'",
+                        default='data/chair.npy')
+    parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 50", default=50)
+    parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
+    parser.add_argument("-r", "--rate", type=float, help="learning rate. Default: 1e-4", default=1e-4)
+    args = parser.parse_args()
 
-with open(file_path, 'rb') as f:
-    xyz = np.load(f)
-    dataset_size = xyz.shape[0]
-    features = torch.from_numpy(xyz)
-    labels = torch.from_numpy(np.load(f))
+    file_path = args.input
+    n_epochs = args.epochs
+    lr = args.rate
+    bs = args.batch
 
-dataset = TensorDataset(features, labels)
-trainset, valset, testset = random_split(dataset, [250000, 10000, 40000])
+    with open(file_path, 'rb') as f:
+        xyz = np.load(f)
+        dataset_size = xyz.shape[0]
+        features = torch.from_numpy(xyz)
+        labels = torch.from_numpy(np.load(f))
 
-train_loader = DataLoader(
-    trainset,
-    shuffle=True,
-    batch_size=bs)
+    dataset = TensorDataset(features, labels)
+    trainset, valset, testset = random_split(dataset, [250000, 10000, 40000])
 
-validation_loader = DataLoader(
-    valset,
-    shuffle=False,
-    batch_size=bs
-)
+    train_loader = DataLoader(
+        trainset,
+        shuffle=True,
+        batch_size=bs)
 
-test_loader = DataLoader(
-    testset, shuffle=False, batch_size=bs
-)
+    validation_loader = DataLoader(
+        valset,
+        shuffle=False,
+        batch_size=bs
+    )
 
-model = SingleShapeSDF([512, 512, 512]).to(device)
+    test_loader = DataLoader(
+        testset, shuffle=False, batch_size=bs
+    )
 
-# loss_fn = torch.nn.MSELoss(reduction='sum')
-loss_fn = deepsdfloss
-# test_overfitting(model, train_loader, loss_fn)
-train_history, validation_history = test_training(model, train_loader, validation_loader, loss_fn,
-                                                  n_epochs=n_epochs, learning_rate=lr)
+    model = SingleShapeSDF([512, 512, 512]).to(device)
 
-model.eval()
-test_loss = 0
-with torch.no_grad():
-    for i, data in enumerate(test_loader):
+    # loss_fn = torch.nn.MSELoss(reduction='sum')
+    loss_fn = deepsdfloss
+    # test_overfitting(model, train_loader, loss_fn)
+    train_history, validation_history = test_training(model, train_loader, validation_loader, loss_fn,
+                                                      n_epochs=n_epochs, learning_rate=lr)
+
+    model.eval()
+    test_loss = 0
+    with torch.no_grad():
+        for i, data in enumerate(test_loader):
+            x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
+            y_pred = model.forward(x)
+            loss = loss_fn(y_pred, y)
+            test_loss += loss.item()
+        data = next(iter(test_loader))
         x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
         y_pred = model.forward(x)
-        loss = loss_fn(y_pred, y)
-        test_loss += loss.item()
-    data = next(iter(test_loader))
-    x, y = data[0].to(device), data[1].unsqueeze(1).to(device)
-    y_pred = model.forward(x)
-    meshplot.plot(x.cpu().numpy(), c=y_pred.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/predicted.html")
-    meshplot.plot(x.cpu().numpy(), c=y.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/target.html")
-print(f"TEST LOSS: {test_loss/4}")
+        meshplot.plot(x.cpu().numpy(), c=y_pred.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/predicted.html")
+        meshplot.plot(x.cpu().numpy(), c=y.cpu().numpy(), shading={"point_size": 0.2}, filename="debug/target.html")
+    print(f"TEST LOSS: {test_loss/4}")
 
 
 
 
 
-plot_training_curve(train_history, validation_history, test_loss)
+    plot_training_curve(train_history, validation_history, test_loss)
 
-# TODO: validation with another metric (not deepsdf loss)
-# TODO: what metric do they use in the paper?
-
-
+    # TODO: validation with another metric (not deepsdf loss)
+    # TODO: what metric do they use in the paper?
 
 
-visualize_voxels(model, grid_res=20)
-visualize_marchingcubes(model, grid_res=100)
+
+
+    visualize_voxels(model, grid_res=20)
+    visualize_marchingcubes(model, grid_res=100)
+
+
+if __name__ == '__main__':
+    main()
