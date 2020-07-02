@@ -8,24 +8,6 @@ from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from utils import get_sdfgrid
 import meshplot
-meshplot.offline()
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-parser = argparse.ArgumentParser()
-# TODO: change default values
-parser.add_argument("-i", "--input", help="Path to .npy file. Default: 'data/chair.npy'",
-                    default='data/airplane.npy')
-parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 10", default=10)
-parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
-parser.add_argument("-r", "--rate", type=float, help="learning rate. Default: 1e-4", default=1e-4)
-args = parser.parse_args()
-
-file_path = args.input
-n_epochs = args.epochs
-lr = args.rate
-bs = args.batch
-
 
 def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_iters=30):
     print(mymodel)
@@ -78,6 +60,61 @@ def test_training(mymodel, dataloader, valloader, lossfunction, learning_rate=1e
         v_history.append(total_loss)
     return t_history, v_history
 
+def visualize_voxels(model, grid_res=20):
+    outs = get_sdfgrid(model, grid_res)
+    sdfs_ = (np.abs(outs) < 1 / grid_res) * 1.0
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.voxels(sdfs_, edgecolor="k")
+    plt.show()
+
+
+def visualize_marchingcubes(model, grid_res=100):
+    outs = get_sdfgrid(model, grid_res)
+    verts, faces, normals, values = measure.marching_cubes(outs, 0)
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    mesh = Poly3DCollection(verts[faces])
+    mesh.set_edgecolor('k')
+    ax.add_collection3d(mesh)
+
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+
+    ax.set_xlim(0, grid_res)
+    ax.set_ylim(0, grid_res)
+    ax.set_zlim(0, grid_res)
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_training_curve(train_history, validation_history, final_loss):
+    plt.plot(range(n_epochs), train_history, label='train')
+    plt.plot(range(n_epochs), validation_history, label='val')
+    plt.axhline(y=final_loss/4, xmin=0, xmax=n_epochs-1, color='red', label='final test')
+    plt.legend()
+    plt.title("Loss")
+    plt.show()
+
+meshplot.offline()
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+parser = argparse.ArgumentParser()
+# TODO: change default values
+parser.add_argument("-i", "--input", help="Path to .npy file. Default: 'data/chair.npy'",
+                    default='data/chair.npy')
+parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 50", default=50)
+parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
+parser.add_argument("-r", "--rate", type=float, help="learning rate. Default: 1e-4", default=1e-4)
+args = parser.parse_args()
+
+file_path = args.input
+n_epochs = args.epochs
+lr = args.rate
+bs = args.batch
 
 with open(file_path, 'rb') as f:
     xyz = np.load(f)
@@ -127,13 +164,7 @@ with torch.no_grad():
 print(f"TEST LOSS: {test_loss/4}")
 
 
-def plot_training_curve(train_history, validation_history, final_loss):
-    plt.plot(range(n_epochs), train_history, label='train')
-    plt.plot(range(n_epochs), validation_history, label='val')
-    plt.axhline(y=final_loss/4, xmin=0, xmax=n_epochs-1, color='red', label='final test')
-    plt.legend()
-    plt.title("Loss")
-    plt.show()
+
 
 
 plot_training_curve(train_history, validation_history, test_loss)
@@ -143,35 +174,6 @@ plot_training_curve(train_history, validation_history, test_loss)
 
 
 
-def visualize_voxels(model, grid_res=20):
-    outs = get_sdfgrid(model, grid_res)
-    sdfs_ = (np.abs(outs) < 1 / grid_res) * 1.0
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.voxels(sdfs_, edgecolor="k")
-    plt.show()
-
-
-def visualize_marchingcubes(model, grid_res=100):
-    outs = get_sdfgrid(model, grid_res)
-    verts, faces, normals, values = measure.marching_cubes(outs, 0)
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
-
-    mesh = Poly3DCollection(verts[faces])
-    mesh.set_edgecolor('k')
-    ax.add_collection3d(mesh)
-
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_zlabel("z")
-
-    ax.set_xlim(0, grid_res)
-    ax.set_ylim(0, grid_res)
-    ax.set_zlim(0, grid_res)
-
-    plt.tight_layout()
-    plt.show()
 
 visualize_voxels(model, grid_res=20)
 visualize_marchingcubes(model, grid_res=100)
