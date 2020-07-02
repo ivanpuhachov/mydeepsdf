@@ -107,12 +107,13 @@ class FamilyShapeSDFWrapper:
                 for i, data in enumerate(trainloader_, 0):
                     x, y = data[0].to(self.device), data[1].unsqueeze(1).to(self.device)
                     y_pred = self.model(x, family_id=id_)
-                    regularizer = torch.norm(self.model.latent_vector[id_], p=2) / 0.01  # TODO: this is not exactly a regularizer from the paper
+                    regularizer = torch.norm(self.model.latent_vector[id_]) / 0.01
                     loss = lossfunction(y_pred, y) + regularizer
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
-                    running_loss += loss.item()
+                    running_loss += loss.item() - regularizer.item()  # (so we add only lossfunction)
+                running_loss += regularizer.item()
                 total_loss += running_loss
                 print(f"Shape {id_} - {self.filename_to_id[id_]}, loss: {running_loss}")
                 if debug:
