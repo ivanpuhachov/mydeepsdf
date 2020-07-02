@@ -107,7 +107,8 @@ class FamilyShapeSDFWrapper:
                 for i, data in enumerate(trainloader_, 0):
                     x, y = data[0].to(self.device), data[1].unsqueeze(1).to(self.device)
                     y_pred = self.model(x, family_id=id_)
-                    loss = lossfunction(y_pred, y)
+                    regularizer = torch.norm(self.model.latent_vector[id_], p=2) / 0.01  # TODO: this is not exavtly a regularizer from the paper
+                    loss = lossfunction(y_pred, y) + regularizer
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -277,7 +278,7 @@ def get_parser():
     # TODO: change default values
     parser.add_argument("-i", "--input", help="Path to parent folder of obj. Default: 'data/airplanes/npy/'",
                         default='debug/temp/')
-    parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=5)
+    parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=20)
     parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=7)
     parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 16384", default=16384)
     parser.add_argument("-g", "--height", type=int, help="Number of neurons in hidden units. Default: 200", default=200)
