@@ -9,6 +9,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from utils import get_sdfgrid
 import meshplot
 
+
 def test_overfitting(mymodel, dataloader, lossfunction, learning_rate=1e-4, n_iters=30):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(mymodel)
@@ -62,7 +63,9 @@ def test_training(mymodel, dataloader, valloader, lossfunction, learning_rate=1e
         v_history.append(total_loss)
     return t_history, v_history
 
+
 def visualize_voxels(model, grid_res=20):
+    model.eval()
     outs = get_sdfgrid(model, grid_res)
     sdfs_ = (np.abs(outs) < 1 / grid_res) * 1.0
     fig = plt.figure()
@@ -71,7 +74,8 @@ def visualize_voxels(model, grid_res=20):
     plt.show()
 
 
-def visualize_marchingcubes(model, grid_res=100):
+def visualize_marchingcubes(model, grid_res=60):
+    model.eval()
     outs = get_sdfgrid(model, grid_res)
     verts, faces, normals, values = measure.marching_cubes(outs, 0)
     fig = plt.figure(figsize=(10, 10))
@@ -111,8 +115,8 @@ def main():
     # TODO: change default values
     parser.add_argument("-i", "--input", help="Path to .npy file. Default: 'data/chair.npy'",
                         default='data/chair.npy')
-    parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 50", default=50)
-    parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=5000)
+    parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 50", default=100)
+    parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 5000", default=16384)
     parser.add_argument("-r", "--rate", type=float, help="learning rate. Default: 1e-4", default=1e-4)
     args = parser.parse_args()
 
@@ -182,6 +186,8 @@ def main():
 
     visualize_voxels(model, grid_res=20)
     visualize_marchingcubes(model, grid_res=100)
+
+    torch.save(model.state_dict(), "SingleShapeSDF-512.pt")
 
 
 if __name__ == '__main__':
