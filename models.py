@@ -72,7 +72,7 @@ class FamilyShapeDecoderSDF(nn.Module):
         """
         super(FamilyShapeDecoderSDF, self).__init__()
         self.latent_size = latent_size
-        self.latent_vector = torch.nn.Parameter(torch.randn([family_size, latent_size], dtype=torch.float32))
+        self.latent_vector = torch.nn.Parameter(torch.normal(mean=0, std=0.01, size=[family_size, latent_size], dtype=torch.float32))
         assert h_blocks > latent_size + 3
         # self.n_blocks = n_blocks
         self.h_blocks = h_blocks
@@ -89,7 +89,6 @@ class FamilyShapeDecoderSDF(nn.Module):
         batchsize = xyz.shape[0]
         inputs = torch.cat([latent.repeat(batchsize, 1), xyz], dim=1)
         x = inputs
-        # TODO: weight norm
         x = self.block0(x)
         x = torch.cat([inputs, x], dim=1)
         x = self.block1(x)
@@ -97,10 +96,16 @@ class FamilyShapeDecoderSDF(nn.Module):
         return x
 
 
-def deepsdfloss(outputs, targets):
-    # TODO: move that delta somewhere to clean up the code
-    delta = 0.1
+def deepsdfloss(outputs, targets, delta=0.1):
     # TODO: investigate nn.MSELoss()(torch.clamp(...) -...)
     return torch.mean(torch.abs(
         torch.clamp(outputs, min=-delta, max=delta) - torch.clamp(targets, min=-delta, max=delta)
     ))
+
+
+def l1loss(outputs, targets):
+    return torch.mean(torch.abs(outputs - targets))
+
+
+def SALloss(outputs, targets):
+    return torch.mean(torch.abs(torch.abs(outputs) - targets))
