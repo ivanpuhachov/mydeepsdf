@@ -6,6 +6,16 @@ GitHub https://github.com/facebookresearch/DeepSDF
 ## TODO
  * investigate sampling technique
  * add instructions to processing meshes
+ 
+## Single shape model (train)
+```bash
+python test_fnn.py -i data/chair.npy -e 50 
+``` 
+
+## Family of shapes (train)
+```bash
+python family_training.py -i data/airplanes/npy/ -e 50
+```
 
 ## Point Sampling
 Points are sampled by [mesh-to-sdf](https://github.com/marian42/mesh_to_sdf) package. 
