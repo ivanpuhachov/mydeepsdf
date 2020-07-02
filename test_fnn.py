@@ -92,7 +92,6 @@ train_loader = DataLoader(
     trainset,
     shuffle=True,
     batch_size=bs)
-# TODO: paper uses batchsize = 16k, why?
 
 validation_loader = DataLoader(
     valset,

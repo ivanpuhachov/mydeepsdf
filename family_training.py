@@ -1,8 +1,7 @@
 import torch
-import torch.nn as nn
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset, random_split
-from models import FamilyShapeDecoderSDF, deepsdfloss
+from models import FamilyShapeDecoderSDF, deepsdfloss, l1loss
 import argparse
 from os import path, listdir, mkdir
 import random
@@ -74,6 +73,7 @@ class FamilyShapeSDFWrapper:
 
     def get_loaders(self):
         for id_, filename in enumerate(listdir(self.path_to_training_npyfolder)):
+            # TODO: use torch.utils.data.WeightedRandomSampler
             with open(self.path_to_training_npyfolder + filename, 'rb') as f:
                 features = torch.from_numpy(np.load(f))
                 labels = torch.from_numpy(np.load(f))
@@ -107,7 +107,7 @@ class FamilyShapeSDFWrapper:
                 for i, data in enumerate(trainloader_, 0):
                     x, y = data[0].to(self.device), data[1].unsqueeze(1).to(self.device)
                     y_pred = self.model(x, family_id=id_)
-                    regularizer = torch.norm(self.model.latent_vector[id_], p=2) / 0.01  # TODO: this is not exavtly a regularizer from the paper
+                    regularizer = torch.norm(self.model.latent_vector[id_], p=2) / 0.01  # TODO: this is not exactly a regularizer from the paper
                     loss = lossfunction(y_pred, y) + regularizer
                     optimizer.zero_grad()
                     loss.backward()
@@ -136,7 +136,7 @@ class FamilyShapeSDFWrapper:
             print("\n Last layer weights: ")
             print(self.model.block1[7].weight)
 
-    def validate(self, lossfunction=deepsdfloss, debug=False):
+    def validate(self, lossfunction=l1loss, debug=False):
         total_loss = 0
         for key, value in self.family_data_validation.items():
             id_, validationloader_ = value
@@ -149,7 +149,7 @@ class FamilyShapeSDFWrapper:
             print(f"Total loss: {total_loss}")
         return total_loss
 
-    def val_(self, dataloader, latentvector, lossfunction=deepsdfloss):
+    def val_(self, dataloader, latentvector, lossfunction=l1loss):
         assert latentvector.shape[0] == self.latent_size
         self.model.eval()
         val_loss = 0
@@ -277,11 +277,11 @@ def get_parser():
     parser = argparse.ArgumentParser()
     # TODO: change default values
     parser.add_argument("-i", "--input", help="Path to parent folder of obj. Default: 'data/airplanes/npy/'",
-                        default='debug/temp/')
-    parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=20)
-    parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=7)
+                        default='data/airplanes/npy/')
+    parser.add_argument("-e", "--epochs", type=int, help="Number of training epochs. Default: 5", default=5)
+    parser.add_argument("-l", "--latent", type=int, help="Dimensionality of the latent space. Default: 256", default=256)
     parser.add_argument("-b", "--batch", type=int, help="Batch size. Default: 16384", default=16384)
-    parser.add_argument("-g", "--height", type=int, help="Number of neurons in hidden units. Default: 200", default=200)
+    parser.add_argument("-g", "--height", type=int, help="Number of neurons in hidden units. Default: 512", default=512)
     parser.add_argument("-d", "--debug", help="Print debugging info", action='store_true')
     parser.add_argument("-r", "--rate", type=float, help="Learning rate. Default: 1e-4", default=1e-4)
     return parser
