@@ -73,6 +73,17 @@ def visualize_voxels(model, grid_res=20):
     ax.voxels(sdfs_, edgecolor="k")
     plt.show()
 
+def visualize_voxels_png(model, filename, grid_res=20):
+    model.eval()
+    outs = get_sdfgrid(model, grid_res)
+    sdfs_ = (np.abs(outs) < 1 / grid_res) * 1.0
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.voxels(sdfs_, edgecolor="k")
+    plt.axis('off')
+    plt.savefig(filename)
+    plt.close()
+
 
 def visualize_marchingcubes(model, grid_res=60):
     model.eval()
@@ -95,6 +106,7 @@ def visualize_marchingcubes(model, grid_res=60):
 
     plt.tight_layout()
     plt.show()
+
 
 def plot_training_curve(train_history, validation_history, final_loss):
     n_epochs = len(train_history)
