@@ -5,7 +5,7 @@ from models import FamilyShapeDecoderSDF, deepsdfloss, l1loss
 import argparse
 from os import path, listdir, mkdir
 import random
-from utils import get_torchgrid
+from utils import get_torchgrid, get_balancedsampler
 import matplotlib.pyplot as plt
 from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -75,12 +75,14 @@ class FamilyShapeSDFWrapper:
         for id_, filename in enumerate(listdir(self.path_to_training_npyfolder)):
             # TODO: use torch.utils.data.WeightedRandomSampler
             with open(self.path_to_training_npyfolder + filename, 'rb') as f:
-                features = torch.from_numpy(np.load(f))
-                labels = torch.from_numpy(np.load(f))
-            dataset = TensorDataset(features, labels)
+                features = np.load(f)
+                labels = np.load(f)
+            # balanced sampling
+            sampler = get_balancedsampler(labels)
+            dataset = TensorDataset(torch.from_numpy(features), torch.from_numpy(labels))
             trainset, validationset = random_split(dataset, [250000, 50000])
-            train_loader = DataLoader(trainset, shuffle=True, batch_size=self.batch_size)
-            validation_loader = DataLoader(validationset, shuffle=True, batch_size=self.batch_size)
+            train_loader = DataLoader(trainset, sampler=sampler, batch_size=self.batch_size, num_workers=8)
+            validation_loader = DataLoader(validationset, shuffle=True, batch_size=self.batch_size, num_workers=8)
             self.filename_to_id[filename] = id_
             self.family_data_train[filename] = (id_, train_loader)
             self.family_data_validation[filename] = (id_, validation_loader)

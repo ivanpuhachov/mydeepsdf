@@ -15,3 +15,15 @@ def get_sdfgrid(model, grid_res=20, device='cuda'):
     with torch.no_grad():
         outs = model.forward(grid).cpu().reshape(shape=(grid_res, grid_res, grid_res)).numpy()
     return outs
+
+
+def get_balancedsampler(labels):
+    # TODO: this is still not an ideal solution for balanced sampling
+    # balanced sampling
+    sampling_weights = np.ones_like(labels)
+    positive_part = np.sum(labels > 0) / labels.shape[0]
+    negative_part = np.sum(labels < 0) / labels.shape[0]
+    sampling_weights[labels > 0] = negative_part
+    sampling_weights[labels < 0] = positive_part
+    sampler = torch.utils.data.sampler.WeightedRandomSampler(sampling_weights, len(sampling_weights))
+    return sampler

@@ -6,8 +6,6 @@ GitHub https://github.com/facebookresearch/DeepSDF
 ## TODO
  * investigate sampling technique
  * add instructions to processing meshes
- * weighted sampling (see demo.ipynb)
- * numworkers in dataset!! (see demo.ipynb)
  
 ## Single shape model (train)
 ```bash

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import argparse
 from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from utils import get_sdfgrid
+from utils import get_sdfgrid, get_balancedsampler
 import meshplot
 
 
@@ -141,9 +141,10 @@ def main():
         xyz = np.load(f)
         dataset_size = xyz.shape[0]
         features = torch.from_numpy(xyz)
-        labels = torch.from_numpy(np.load(f))
-
-    dataset = TensorDataset(features, labels)
+        labels = np.load(f)
+    # balanced sampling
+    sampler = get_balancedsampler(labels)
+    dataset = TensorDataset(features, torch.from_numpy(labels))
     trainset, valset, testset = random_split(dataset, [250000, 10000, 40000])
 
     train_loader = DataLoader(
