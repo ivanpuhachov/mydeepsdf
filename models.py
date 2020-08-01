@@ -38,7 +38,7 @@ class SingleShapeSDF(nn.Module):
             x = self.layers[layer](x)
             x = nn.functional.relu(x)
         x = self.layers[-1](x)
-        x = torch.tanh(x)
+        # x = torch.tanh(x)
         return x
 
 
