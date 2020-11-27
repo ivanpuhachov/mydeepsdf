@@ -154,4 +154,3 @@ dependencies:
     - pyrender==0.1.43
     - trimesh==3.7.4
 prefix: /home/ivan/anaconda3/envs/mydeepsdf
-
